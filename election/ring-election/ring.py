@@ -8,7 +8,7 @@ class Process():
     def __init__(self, process_id, all_process_ids):
         super().__init__()
         self.id = process_id
-        self.ids = []
+        #self.ids = ids
         self.all_process_ids = all_process_ids  # 全プロセスIDのリスト
         self.leader_id = None  # 現在のリーダーID リーダーが決まったら更新
         self.send_OK = False
@@ -18,16 +18,14 @@ class Process():
 
 
     def start_election(self):
-
-        self.ids.append(self.id)
         message_election = {
             "type": "ELECTION",
-            "ids": self.ids
+            "ids": [self.id]
             #↑自分のIDを追加した配列
         }
     
         current_index = self.all_process_ids.index(self.id)
-        next_index = (current_index + 1) % len(process_ids)
+        next_index = (current_index + 1) % len(self.all_process_ids)
         next_id = self.all_process_ids[next_index]
 
         if self.send_OK == True:
@@ -43,15 +41,18 @@ class Process():
     def start_coordinator(self):
         message_coordinator = {
             "type": "COORDINATOR",
-            "leader_id": self.leader_id
+            "leader_id": self.leader_id,
+            "sender_id": self.id
         }
 
         current_index = self.all_process_ids.index(self.id)
-        next_index = (current_index + 1) % len(process_ids)
+        next_index = (current_index + 1) % len(self.all_process_ids)
         next_id = self.all_process_ids[next_index]
 
         self.send_message(next_id, message_coordinator)
         time.sleep(1.0)
+
+
 
     def keep_listening(self):
         #ソケット通信でデータを受信する
@@ -73,7 +74,7 @@ class Process():
         #メッセージにメッセージタイプを付与することで受信側が handle_message() で識別できるようにする
         
         counter = 0
-        while counter <= len(self.all_process_ids):  
+        while counter < len(self.all_process_ids):  
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  
             current_index = self.all_process_ids.index(self.id)
             next_index = (current_index + 1 + counter) % len(self.all_process_ids)
@@ -83,7 +84,7 @@ class Process():
                 json_message = json.dumps(message).encode("UTF-8")
                 sock.send(json_message)    
                 self.send_OK = True  
-                print("can send election to" + target_port)            
+                print("can send election to" + str(target_port))            
             except ConnectionRefusedError:
                 counter += 1 
                 sock.close() 
@@ -111,14 +112,45 @@ class Process():
                     #if self.leader_id <= max(message_ids):
                         #self.leader_id
                 self.leader_id = max(message_ids)
+                self.start_coordinator()
                 #self.start_leader_message()
                 print(str(self.leader_id) + "がリーダー")
                 time.sleep(2.0)
             else:    
-                self.start_election        
+                message_ids.append(self.id)
+                message_election = {
+                    "type": "ELECTION",
+                    "ids": message_ids
+                }       
+                current_index = self.all_process_ids.index(self.id)
+                next_index = (current_index + 1) % len(self.all_process_ids)
+                next_id = self.all_process_ids[next_index]
+                self.send_message(next_id, message_election)
 
         if message_type == "COORDINATOR":
-            pass
+            message_leader_id = message.get("leader_id")
+            message_sender_id = message.get("sender_id")
+            print("coordinator受信{message_leader_id}" )
+            self.leader_id = message_leader_id 
+            if self.id == message_sender_id:
+                print("COORDINATORメッセージが一周しました")
+                return
+            elif self.leader_id == self.id:
+                self.is_leader = True
+                message_coordinator = {
+                    "type": "COORDINATOR",
+                    "leader_id": message_leader_id,
+                    "sender_id": message_sender_id
+                    }
+                current_index =self.all_process_ids.index(self.id)
+                next_index = (current_index + 1) %len(self.all_process_ids)
+                next_id =self.all_process_ids[next_index]
+                self.send_message(next_id,message_coordinator)
+            else:
+                current_index =self.all_process_ids.index(self.id)
+                next_index = (current_index + 1) %len(self.all_process_ids)
+                next_id =self.all_process_ids[next_index]
+                self.send_message(next_id,message_coordinator)
 
         if message_type == "PING":
             message_id = message.get("id")
@@ -146,12 +178,21 @@ class Process():
             time.sleep(2.0)
             # 定期的にリーダーの存在を確認し、必要に応じて選挙を開始する
             
-            # message_PING = {
-            #     "type": "PING",
-            #     "id": self.id
-            # }
-            # self.send_message(self.leader_id, message_PING)
-            # time.sleep(2.0)
+            message_PING = {
+                "type": "PING",
+                "id": self.id
+            }
+            self.send_message(self.leader_id, message_PING)
+            time.sleep(2.0)
+
+            
+            if self.ALIVE_received == False:
+                print("リーダーがいない、選挙開始")
+                self.start_election()
+            
+            elif self.ALIVE_received == True:
+                self.ALIVE_received = False
+        
 
             # if self.ALIVE_received == False:
             #     print("リーダーがいない、選挙開始") 
