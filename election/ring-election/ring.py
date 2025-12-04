@@ -130,7 +130,6 @@ class Process():
         if message_type == "COORDINATOR":
             message_leader_id = message.get("leader_id")
             message_sender_id = message.get("sender_id")
-            print("coordinator受信{message_leader_id}" )
             self.leader_id = message_leader_id 
             if self.id == message_sender_id:
                 print("COORDINATORメッセージが一周しました")
