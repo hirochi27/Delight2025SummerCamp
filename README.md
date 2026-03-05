@@ -1,0 +1,2 @@
+# Bully algorithm
+分散システムにおける選挙アルゴリズムの勉強を目的としたBully algorithmの実装
